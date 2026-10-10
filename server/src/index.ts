@@ -73,7 +73,7 @@ async function main() {
     });
 
     ws.on('close', () => {
-      console.log('Client disconnected from room:', roomName);
+      console.log('❌Client disconnected from room:', roomName);
     });
 
     ws.on('error', (err) => {
