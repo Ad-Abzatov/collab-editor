@@ -1,8 +1,10 @@
 # Collab Editor
+
 ![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
 ![Yjs](https://img.shields.io/badge/Yjs-CRDT-blueviolet?style=for-the-badge)
 ![Fastify](https://img.shields.io/badge/Fastify-000000?style=for-the-badge&logo=fastify&logoColor=white)
+
 Совместный текстовый редактор в реальном времени на **React + TypeScript + Yjs (CRDT)** с собственным WebSocket-сервером на **Fastify**.
 
 ## Live Demo
@@ -25,7 +27,8 @@
 
 ## Скриншот
 
-> Вставьте скриншот или GIF (см. ниже, как сделать).
+![Демонстрация совместного редактора](demo.gif)
+Изменения, внесённые в одной вкладке, появляются в другой в реальном времени.
 
 ## Быстрый старт
 
