@@ -11,7 +11,7 @@ import {LeveldbPersistence} from 'y-leveldb'
 //npx tsx src/index.ts
 
 const docs = new Map<string, Y.Doc>();
-const persistens = new LeveldbPersistence('./storage');
+const persistence = new LeveldbPersistence('./storage');
 const awarenessMap = new Map<string, awarenessProtocol.Awareness>();
 
 async function main() {
@@ -25,13 +25,18 @@ async function main() {
 
   const wss = new WebSocketServer({server: fastify.server});
 
-  wss.on('connection', (ws, req) => {
+  wss.on('connection', async (ws, req) => {
     const roomName = req.url?.split('?')[0]?.slice(1) || 'default';
     console.log('🔌 Client connected to room', roomName);
 
     let doc = docs.get(roomName);
     if (!doc) {
-      doc = new Y.Doc();
+      doc = await persistence.getYDoc(roomName);
+
+      doc.on('update', (update: Uint8Array) => {
+        void persistence.storeUpdate(roomName, update).catch(console.error);
+      });
+
       docs.set(roomName, doc);
       console.log('📄 Created new document for room:', roomName);
     }
