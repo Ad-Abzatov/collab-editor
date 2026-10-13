@@ -6,10 +6,12 @@ import { WebSocketServer } from 'ws'
 import { decoding, encoding } from 'lib0'
 import * as syncProtocol from 'y-protocols/sync'
 import * as awarenessProtocol from 'y-protocols/awareness'
+import {LeveldbPersistence} from 'y-leveldb'
 
 //npx tsx src/index.ts
 
 const docs = new Map<string, Y.Doc>();
+const persistens = new LeveldbPersistence('./storage');
 const awarenessMap = new Map<string, awarenessProtocol.Awareness>();
 
 async function main() {
