@@ -2,7 +2,7 @@ import 'dotenv/config'
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import * as Y from 'yjs'
-import { WebSocketServer } from 'ws'
+import { WebSocketServer, WebSocket } from 'ws'
 import { decoding, encoding } from 'lib0'
 import * as syncProtocol from 'y-protocols/sync'
 import * as awarenessProtocol from 'y-protocols/awareness'
@@ -13,6 +13,7 @@ import {LeveldbPersistence} from 'y-leveldb'
 const docs = new Map<string, Y.Doc>();
 const persistence = new LeveldbPersistence('./storage');
 const awarenessMap = new Map<string, awarenessProtocol.Awareness>();
+const rooms = new Map<string, Set<WebSocket>>();
 
 async function main() {
   const fastify = Fastify();
@@ -28,6 +29,12 @@ async function main() {
   wss.on('connection', async (ws, req) => {
     const roomName = req.url?.split('?')[0]?.slice(1) || 'default';
     console.log('🔌 Client connected to room', roomName);
+    let connections = rooms.get(roomName);
+
+    if (!connections) {
+      connections = new Set();
+      rooms.set(roomName, connections);
+    }
 
     let doc = docs.get(roomName);
     if (!doc) {
@@ -57,23 +64,40 @@ async function main() {
         if (messageType === 0) {
           encoding.writeVarUint(encoder, 0);
           syncProtocol.readSyncMessage(decoder, encoder, doc!, null);
+          if (encoding.length(encoder) > 1) {
+          ws.send(encoding.toUint8Array(encoder));
+        }
+        rooms.get(roomName)?.forEach((client) => {
+          if (client !== ws && client.readyState === 1) {
+            client.send(message);
+          }
+        });
         } else if (messageType === 1) {
           awarenessProtocol.applyAwarenessUpdate(
             awareness!,
             decoding.readVarUint8Array(decoder),
             null
           );
-        }
 
-        if (encoding.length(encoder) > 1) {
-          ws.send(encoding.toUint8Array(encoder));
-        }
+          const clientIDs = Array.from(awareness!.getStates().keys());
 
-        wss.clients.forEach((client) => {
-          if (client !== ws && client.readyState === 1) {
-            client.send(message);
-          }
-        });
+          const awarenessEncoder = encoding.createEncoder();
+          encoding.writeVarUint(awarenessEncoder, 1);
+          encoding.writeVarUint8Array(
+            awarenessEncoder,
+            awarenessProtocol.encodeAwarenessUpdate(awareness!, clientIDs)
+          );
+
+          const awarenessMessage = encoding.toUint8Array(awarenessEncoder);
+
+          ws.send(awarenessMessage);
+
+          rooms.get(roomName)?.forEach((client) => {
+            if (client !== ws && client.readyState === 1) {
+              client.send(message);
+            }
+          });
+        }
       } catch (err) {
         console.error('Error processing Yjs message:', err);
       }
@@ -81,6 +105,7 @@ async function main() {
 
     ws.on('close', () => {
       console.log('❌Client disconnected from room:', roomName);
+      rooms.get(roomName)?.delete(ws);
     });
 
     ws.on('error', (err) => {

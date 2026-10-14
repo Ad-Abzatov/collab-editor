@@ -8,12 +8,18 @@ function App() {
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
+    const handleStatus = (event: {status: string}) => {
+      setConnected(event.status === "connected");
+      console.log("Yjs status:", event.status);
+    };
+
     provider.on('status', (event: {status: string}) => {
       setConnected(event.status === 'connected');
       console.log('Yjs status:', event.status);
     });
 
     return () => {
+      provider.off("status", handleStatus);
     };
   }, []);
 
