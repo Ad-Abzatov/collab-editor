@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { provider } from "./utils/yjs";
 import { Editor } from "./components/Editor";
+import { useNavigate } from "react-router-dom";
 
 //npm run dev
 
@@ -22,6 +23,8 @@ function App() {
       provider.off("status", handleStatus);
     };
   }, []);
+
+  const navigate = useNavigate();
 
   return (
     <div style={{maxWidth: '900px', margin: '0 auto', padding: '2rem'}}>
@@ -54,6 +57,14 @@ function App() {
       }}>
         <Editor/>
       </div>
+      <button
+        onClick={() => {
+          const roomId = crypto.randomUUID();
+          navigate(`/doc/${roomId}`);
+        }}
+      >
+        Создать документ
+      </button>
     </div>
   );
 }
