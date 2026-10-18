@@ -6,7 +6,7 @@ import { WebSocketServer, WebSocket } from 'ws'
 import { decoding, encoding } from 'lib0'
 import * as syncProtocol from 'y-protocols/sync'
 import * as awarenessProtocol from 'y-protocols/awareness'
-import {LeveldbPersistence} from 'y-leveldb'
+import { LeveldbPersistence } from 'y-leveldb'
 
 //npx tsx src/index.ts
 
@@ -14,6 +14,7 @@ const docs = new Map<string, Y.Doc>();
 const persistence = new LeveldbPersistence('./storage');
 const awarenessMap = new Map<string, awarenessProtocol.Awareness>();
 const rooms = new Map<string, Set<WebSocket>>();
+const documentNames = new Set<string>();
 
 async function main() {
   const fastify = Fastify();
@@ -21,15 +22,22 @@ async function main() {
 
   fastify.get('/health', async () => ({ status: 'ok' }));
 
+  fastify.get('/api/documents', async () => {
+    return {
+      documents: Array.from(documentNames)
+    };
+  });
+
   await fastify.listen({ port: 3001, host: '0.0.0.0' });
   console.log('Server running on http://localhost:3001');
 
-  const wss = new WebSocketServer({server: fastify.server});
+  const wss = new WebSocketServer({ server: fastify.server });
 
   wss.on('connection', async (ws, req) => {
     const roomName = req.url?.split('?')[0]?.slice(1) || 'default';
     console.log('🔌 Client connected to room', roomName);
     let connections = rooms.get(roomName);
+    documentNames.add(roomName);
 
     if (!connections) {
       connections = new Set();
@@ -65,13 +73,13 @@ async function main() {
           encoding.writeVarUint(encoder, 0);
           syncProtocol.readSyncMessage(decoder, encoder, doc!, null);
           if (encoding.length(encoder) > 1) {
-          ws.send(encoding.toUint8Array(encoder));
-        }
-        rooms.get(roomName)?.forEach((client) => {
-          if (client !== ws && client.readyState === 1) {
-            client.send(message);
+            ws.send(encoding.toUint8Array(encoder));
           }
-        });
+          rooms.get(roomName)?.forEach((client) => {
+            if (client !== ws && client.readyState === 1) {
+              client.send(message);
+            }
+          });
         } else if (messageType === 1) {
           awarenessProtocol.applyAwarenessUpdate(
             awareness!,
@@ -94,7 +102,7 @@ async function main() {
 
           rooms.get(roomName)?.forEach((client) => {
             if (client !== ws && client.readyState === 1) {
-              client.send(message);
+              client.send(awarenessMessage);
             }
           });
         }
@@ -113,7 +121,7 @@ async function main() {
     });
   });
 
-  console.log('Yjs WebSocket listeningon ws://localhost:3001');
+  console.log('Yjs WebSocket listening on ws://localhost:3001');
 }
 
 main().catch(console.error)
