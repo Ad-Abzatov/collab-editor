@@ -5,8 +5,13 @@ import {javascript} from '@codemirror/lang-javascript';
 import {oneDark} from '@codemirror/theme-one-dark';
 import {yCollab} from 'y-codemirror.next';
 import { ytext } from "../utils/yjs";
+import * as Y from 'yjs';
 
-export function Editor() {
+interface EditorProps {
+  ytext: Y.Text;
+}
+
+export function Editor({ytext}: EditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
 
