@@ -7,11 +7,13 @@ import { Editor } from '../components/Editor';
 export default function DocumentPage() {
   const {roomId} = useParams<{roomId: string}>();
   const [connected, setConnected] = useState(false);
+  const [ytext, setYtext] = useState<Y.Text | null>(null);
 
   useEffect(() => {
     if (!roomId) return;
 
     const ydoc = new Y.Doc();
+    const ytext = ydoc.getText('content');
 
     const provider = new WebsocketProvider(
       'ws://localhost:3001',
@@ -23,20 +25,22 @@ export default function DocumentPage() {
       setConnected(event.status === 'connected');
     });
 
+    setYtext(ytext);
+
     return () => {
       provider.destroy();
       ydoc.destroy();
     };
   }, [roomId]);
 
-  if (!roomId) return null;
+  if (!roomId || !ytext) return null;
 
   return (
     <div>
       <div>
         Status: {connected ? 'Connected' : 'Disconnected'}
       </div>
-      <Editor/>
+      <Editor ytext={ytext}/>
     </div>
   );
 }
