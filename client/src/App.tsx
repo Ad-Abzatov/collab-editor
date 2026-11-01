@@ -1,12 +1,31 @@
 import { useEffect, useState } from "react";
-import { provider } from "./utils/yjs";
-import { Editor } from "./components/Editor";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 //npm run dev
 
 function App() {
   const navigate = useNavigate();
+  const [documents, setDocuments] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadDocuments = async () => {
+      try {
+        const response = await fetch('http://localhost:3001/api/documents');
+        const data = await response.json();
+
+        console.log('Documents response:', data);
+
+        setDocuments(data.documents ?? []);
+      } catch (error) {
+        console.error('Failed to load documents:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadDocuments();
+  }, []);
 
   return (
     <div style={{maxWidth: '900px', margin: '0 auto', padding: '2rem'}}>
@@ -27,6 +46,28 @@ function App() {
       >
         Создать документ
       </button>
+
+      <h2 style={{marginTop: '2rem', marginBottom: '1rem'}}>
+        Документы
+      </h2>
+
+      {loading ? (
+        <p>Загрузка...</p>
+      ) : documents.length === 0 ? (
+        <p style={{color: '#6b7280'}}>
+          Пока нет сохраненных документов
+        </p>
+      ) : (
+        <ul style={{listStyle: 'none', padding: 0}}>
+          {documents.map((roomId) => (
+            <li key={roomId}>
+              <Link to={`/doc/${roomId}`}>
+                Документ {roomId.slice(0, 8)}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

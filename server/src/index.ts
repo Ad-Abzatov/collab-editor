@@ -14,18 +14,52 @@ const docs = new Map<string, Y.Doc>();
 const persistence = new LeveldbPersistence('./storage');
 const awarenessMap = new Map<string, awarenessProtocol.Awareness>();
 const rooms = new Map<string, Set<WebSocket>>();
-const documentNames = new Set<string>();
+const DOCUMENT_REGISTRY = '__documents__';
 
+async function addDocumentToRegistry(docName: string) {
+  const registryDoc = await persistence.getYDoc(DOCUMENT_REGISTRY);
+
+  const documentsIds = registryDoc.getArray('documentsIds');
+
+  if (!documentsIds.toArray().includes(docName)) {
+    documentsIds.push([docName]);
+
+    await persistence.storeUpdate(
+      DOCUMENT_REGISTRY,
+      Y.encodeStateAsUpdate(registryDoc)
+    );
+  }
+}
+
+async function getDocumentsIds(): Promise<string[]> {
+  const regystryDoc = await persistence.getYDoc(DOCUMENT_REGISTRY);
+
+  const documentsIds = regystryDoc.getArray('documentsIds');
+
+  return documentsIds.toArray() as string[];
+}
 async function main() {
   const fastify = Fastify();
   await fastify.register(cors);
 
   fastify.get('/health', async () => ({ status: 'ok' }));
 
-  fastify.get('/api/documents', async () => {
-    return {
-      documents: Array.from(documentNames)
-    };
+  fastify.get('/api/documents', async (_request, reply) => {
+    try {
+      const documents = await getDocumentsIds();
+
+      return {
+        documents,
+      };
+    } catch (error) {
+      console.error('Failed to load document:', error);
+
+      reply.status(500);
+
+      return {
+        error: 'Failed to load document',
+      };
+    }
   });
 
   await fastify.listen({ port: 3001, host: '0.0.0.0' });
@@ -36,8 +70,8 @@ async function main() {
   wss.on('connection', async (ws, req) => {
     const roomName = req.url?.split('?')[0]?.slice(1) || 'default';
     console.log('🔌 Client connected to room', roomName);
+    await addDocumentToRegistry(roomName);
     let connections = rooms.get(roomName);
-    documentNames.add(roomName);
 
     if (!connections) {
       connections = new Set();
