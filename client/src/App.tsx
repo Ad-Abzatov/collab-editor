@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 //npm run dev
 
 function App() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [documents, setDocuments] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -25,7 +26,7 @@ function App() {
     };
 
     loadDocuments();
-  }, []);
+  }, [location.pathname]);
 
   return (
     <div style={{maxWidth: '900px', margin: '0 auto', padding: '2rem'}}>
