@@ -2,19 +2,31 @@ import 'dotenv/config'
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import * as Y from 'yjs'
-import { WebSocketServer, WebSocket } from 'ws'
-import { decoding, encoding } from 'lib0'
-import * as syncProtocol from 'y-protocols/sync'
-import * as awarenessProtocol from 'y-protocols/awareness'
+import { WebSocketServer } from 'ws'
 import { LeveldbPersistence } from 'y-leveldb'
+import * as utils from 'y-websocket/bin/utils'
 
 //npx tsx src/index.ts
 
-const docs = new Map<string, Y.Doc>();
 const persistence = new LeveldbPersistence('./storage');
-const awarenessMap = new Map<string, awarenessProtocol.Awareness>();
-const rooms = new Map<string, Set<WebSocket>>();
 const DOCUMENT_REGISTRY = '__documents__';
+const {setPersistence, setupWSConnection} = utils;
+
+setPersistence({
+  provider: persistence,
+
+  bindState: async (docName: string, ydoc: Y.Doc) => {
+    const persistedDoc = await persistence.getYDoc(docName);
+
+    Y.applyUpdate(ydoc, Y.encodeStateAsUpdate(persistedDoc));
+
+    ydoc.on('update', (update: Uint8Array) => {
+      void persistence.storeUpdate(docName, update).catch(console.error);
+    });
+  },
+
+  writeState: async (docName: string, ydoc: Y.Doc) => {},
+});
 
 async function addDocumentToRegistry(docName: string) {
   const registryDoc = await persistence.getYDoc(DOCUMENT_REGISTRY);
@@ -38,31 +50,21 @@ async function getDocumentsIds(): Promise<string[]> {
 
   return documentsIds.toArray() as string[];
 }
+
 async function main() {
   const fastify = Fastify();
   await fastify.register(cors);
 
   fastify.get('/health', async () => ({ status: 'ok' }));
 
-  fastify.get('/api/documents', async (_request, reply) => {
-    try {
-      const documents = await getDocumentsIds();
+  fastify.get('/api/documents', async () => {
+    const documents = await getDocumentsIds();
 
-      return {
-        documents,
-      };
-    } catch (error) {
-      console.error('Failed to load document:', error);
-
-      reply.status(500);
-
-      return {
-        error: 'Failed to load document',
-      };
-    }
+    return {documents};
   });
 
   await fastify.listen({ port: 3001, host: '0.0.0.0' });
+
   console.log('Server running on http://localhost:3001');
 
   const wss = new WebSocketServer({ server: fastify.server });
@@ -71,88 +73,7 @@ async function main() {
     const roomName = req.url?.split('?')[0]?.slice(1) || 'default';
     console.log('🔌 Client connected to room', roomName);
     await addDocumentToRegistry(roomName);
-    let connections = rooms.get(roomName);
-
-    if (!connections) {
-      connections = new Set();
-      rooms.set(roomName, connections);
-    }
-
-    let doc = docs.get(roomName);
-    if (!doc) {
-      doc = await persistence.getYDoc(roomName);
-
-      doc.on('update', (update: Uint8Array) => {
-        void persistence.storeUpdate(roomName, update).catch(console.error);
-      });
-
-      docs.set(roomName, doc);
-      console.log('📄 Created new document for room:', roomName);
-    }
-
-    let awareness = awarenessMap.get(roomName);
-    if (!awareness) {
-      awareness = new awarenessProtocol.Awareness(doc);
-      awarenessMap.set(roomName, awareness);
-    }
-
-    ws.on('message', (message: Buffer) => {
-      try {
-        const buf = new Uint8Array(message);
-        const decoder = decoding.createDecoder(buf)
-        const encoder = encoding.createEncoder();
-        const messageType = decoding.readVarUint(decoder);
-
-        if (messageType === 0) {
-          encoding.writeVarUint(encoder, 0);
-          syncProtocol.readSyncMessage(decoder, encoder, doc!, null);
-          if (encoding.length(encoder) > 1) {
-            ws.send(encoding.toUint8Array(encoder));
-          }
-          rooms.get(roomName)?.forEach((client) => {
-            if (client !== ws && client.readyState === 1) {
-              client.send(message);
-            }
-          });
-        } else if (messageType === 1) {
-          awarenessProtocol.applyAwarenessUpdate(
-            awareness!,
-            decoding.readVarUint8Array(decoder),
-            null
-          );
-
-          const clientIDs = Array.from(awareness!.getStates().keys());
-
-          const awarenessEncoder = encoding.createEncoder();
-          encoding.writeVarUint(awarenessEncoder, 1);
-          encoding.writeVarUint8Array(
-            awarenessEncoder,
-            awarenessProtocol.encodeAwarenessUpdate(awareness!, clientIDs)
-          );
-
-          const awarenessMessage = encoding.toUint8Array(awarenessEncoder);
-
-          ws.send(awarenessMessage);
-
-          rooms.get(roomName)?.forEach((client) => {
-            if (client !== ws && client.readyState === 1) {
-              client.send(awarenessMessage);
-            }
-          });
-        }
-      } catch (err) {
-        console.error('Error processing Yjs message:', err);
-      }
-    });
-
-    ws.on('close', () => {
-      console.log('❌Client disconnected from room:', roomName);
-      rooms.get(roomName)?.delete(ws);
-    });
-
-    ws.on('error', (err) => {
-      console.error('WebSocket error:', err);
-    });
+    setupWSConnection(ws, req);
   });
 
   console.log('Yjs WebSocket listening on ws://localhost:3001');
