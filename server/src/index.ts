@@ -12,6 +12,11 @@ const persistence = new LeveldbPersistence('./storage');
 const DOCUMENT_REGISTRY = '__documents__';
 const {setPersistence, setupWSConnection} = utils;
 
+interface DocumentRecord {
+  id: string;
+  title: string;
+}
+
 setPersistence({
   provider: persistence,
 
@@ -28,13 +33,20 @@ setPersistence({
   writeState: async (docName: string, ydoc: Y.Doc) => {},
 });
 
-async function addDocumentToRegistry(docName: string) {
+async function addDocumentToRegistry(docName: string, title: string) {
   const registryDoc = await persistence.getYDoc(DOCUMENT_REGISTRY);
 
-  const documentsIds = registryDoc.getArray('documentsIds');
+  const documents = registryDoc.getArray<DocumentRecord>('documents');
 
-  if (!documentsIds.toArray().includes(docName)) {
-    documentsIds.push([docName]);
+  const exists = documents.toArray().some((document) => document.id === docName);
+
+  if (!exists) {
+    documents.push([
+      {
+        id: docName,
+        title,
+      },
+    ]);
 
     await persistence.storeUpdate(
       DOCUMENT_REGISTRY,
@@ -43,12 +55,42 @@ async function addDocumentToRegistry(docName: string) {
   }
 }
 
-async function getDocumentsIds(): Promise<string[]> {
+async function renameDocument(docName: string, title: string) {
+  const registryDoc = await persistence.getYDoc(DOCUMENT_REGISTRY);
+
+  const documents = registryDoc.getArray<DocumentRecord>('documents');
+
+  const index = documents.toArray().findIndex((document) => document.id === docName);
+
+  if (index === -1) {
+    documents.push([
+      {
+        id: docName,
+        title,
+      },
+    ]);
+  } else {
+    documents.delete(index, 1);
+    documents.insert(index, [
+    {
+      id: docName,
+      title,
+    },
+  ]);
+  }
+
+  await persistence.storeUpdate(
+      DOCUMENT_REGISTRY,
+      Y.encodeStateAsUpdate(registryDoc)
+  );
+}
+
+async function getDocuments(): Promise<DocumentRecord[]> {
   const regystryDoc = await persistence.getYDoc(DOCUMENT_REGISTRY);
 
-  const documentsIds = regystryDoc.getArray('documentsIds');
+  const documents = regystryDoc.getArray('documents');
 
-  return documentsIds.toArray() as string[];
+  return documents.toArray() as DocumentRecord[];
 }
 
 async function main() {
@@ -58,9 +100,44 @@ async function main() {
   fastify.get('/health', async () => ({ status: 'ok' }));
 
   fastify.get('/api/documents', async () => {
-    const documents = await getDocumentsIds();
+    const documents = await getDocuments();
 
     return {documents};
+  });
+
+  fastify.post('/api/documents', async (request, reply) => {
+    const {title} = request.body as {title?: string};
+
+    const documentTitle = title?.trim() || 'Без названия';
+    const roomId = crypto.randomUUID();
+
+    await addDocumentToRegistry(roomId, documentTitle);
+
+    reply.status(201);
+
+    return {
+      id: roomId,
+      title: documentTitle,
+    };
+  });
+
+  fastify.patch('/api/documents/:id', async (request, reply) => {
+    const {id} = request.params as {id: string};
+    const {title} = request.body as {title?: string};
+
+    if (!title || title.trim().length === 0) {
+      reply.status(400);
+
+      return {
+        error: 'Title is required',
+      };
+    }
+
+    await renameDocument(id, title.trim());
+
+    return {
+      success: true,
+    };
   });
 
   await fastify.listen({ port: 3001, host: '0.0.0.0' });
@@ -72,7 +149,6 @@ async function main() {
   wss.on('connection', async (ws, req) => {
     const roomName = req.url?.split('?')[0]?.slice(1) || 'default';
     console.log('🔌 Client connected to room', roomName);
-    await addDocumentToRegistry(roomName);
     setupWSConnection(ws, req);
   });
 
