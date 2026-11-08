@@ -3,11 +3,47 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 
 //npm run dev
 
+interface DocumentRecord {
+  id: string;
+  title: string;
+}
+
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [documents, setDocuments] = useState<string[]>([]);
+  const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [title, setTitle] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+
+  const createDocument = async () => {
+    if (isCreating) {
+      return;
+    }
+
+    setIsCreating(true);
+
+    try {
+      const response = await fetch('http://localhost:3001/api/documents', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: title.trim() || 'Без названия',
+        }),
+      });
+
+      const data = await response.json();
+
+      setTitle('');
+      navigate(`/doc/${data.id}`);
+    } catch (error) {
+      console.error('Failed to create document:', error);
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   useEffect(() => {
     const loadDocuments = async () => {
@@ -39,13 +75,14 @@ function App() {
         Создайте документ и откройте его в двух вкладках и начните печатать — изменения синхронизируются в реальном времени.
       </p>
 
-      <button
-        onClick={() => {
-          const roomId = crypto.randomUUID();
-          navigate(`/doc/${roomId}`);
-        }}
-      >
-        Создать документ
+      <input
+        value={title}
+        onChange={(event) => setTitle(event.target.value)}
+        placeholder="Название документа"
+      />
+
+      <button onClick={createDocument} disabled={isCreating}>
+        {isCreating ? 'Создание...' : 'Создать документ'}
       </button>
 
       <h2 style={{marginTop: '2rem', marginBottom: '1rem'}}>
@@ -60,10 +97,10 @@ function App() {
         </p>
       ) : (
         <ul style={{listStyle: 'none', padding: 0}}>
-          {documents.map((roomId) => (
-            <li key={roomId}>
-              <Link to={`/doc/${roomId}`}>
-                Документ {roomId.slice(0, 8)}
+          {documents.map((document) => (
+            <li key={document.id}>
+              <Link to={`/doc/${document.id}`}>
+                {document.title}
               </Link>
             </li>
           ))}
