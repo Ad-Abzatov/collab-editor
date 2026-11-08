@@ -45,6 +45,22 @@ function App() {
     }
   };
 
+  const deleteDocument = async (documentId: string) => {
+    const confirmed = window.confirm('Удалить этот документ?');
+
+    if (!confirmed) return;
+
+    try {
+      await fetch(`http://localhost:3001/api/documents/${documentId}`, {
+        method: 'DELETE',
+      });
+
+      setDocuments((currentDocuments) => currentDocuments.filter((document) => document.id !== documentId))
+    } catch (error) {
+      console.error('Failed to delete document:', error);
+    }
+  };
+
   useEffect(() => {
     const loadDocuments = async () => {
       try {
@@ -98,10 +114,31 @@ function App() {
       ) : (
         <ul style={{listStyle: 'none', padding: 0}}>
           {documents.map((document) => (
-            <li key={document.id}>
+            <li
+              key={document.id}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '1rem',
+                padding: '0.5rem 0',
+                borderBottom: '1px solid #e5e7eb',
+              }}
+            >
               <Link to={`/doc/${document.id}`}>
                 {document.title}
               </Link>
+              <button
+                onClick={() => deleteDocument(document.id)}
+                style={{
+                  color: '#dc2626',
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                Удалить
+              </button>
             </li>
           ))}
         </ul>

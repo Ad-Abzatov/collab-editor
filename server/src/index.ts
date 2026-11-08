@@ -85,10 +85,28 @@ async function renameDocument(docName: string, title: string) {
   );
 }
 
-async function getDocuments(): Promise<DocumentRecord[]> {
-  const regystryDoc = await persistence.getYDoc(DOCUMENT_REGISTRY);
+async function deleteDocument(docName: string) {
+  const registryDoc = await persistence.getYDoc(DOCUMENT_REGISTRY);
+  const documents = registryDoc.getArray<DocumentRecord>('documents');
 
-  const documents = regystryDoc.getArray('documents');
+  const index = documents.toArray().findIndex((document) => document.id === docName);
+
+  if (index !== -1) {
+    documents.delete(index, 1);
+
+    await persistence.storeUpdate(
+      DOCUMENT_REGISTRY,
+      Y.encodeStateAsUpdate(registryDoc)
+    );
+  }
+
+  await persistence.clearDocument(docName);
+}
+
+async function getDocuments(): Promise<DocumentRecord[]> {
+  const registryDoc = await persistence.getYDoc(DOCUMENT_REGISTRY);
+
+  const documents = registryDoc.getArray<DocumentRecord>('documents');
 
   return documents.toArray() as DocumentRecord[];
 }
@@ -118,6 +136,16 @@ async function main() {
     return {
       id: roomId,
       title: documentTitle,
+    };
+  });
+
+  fastify.delete('/api/documents/:id', async (request, reply) => {
+    const {id} = request.params as {id: string};
+
+    await deleteDocument(id);
+
+    return {
+      success: true,
     };
   });
 
