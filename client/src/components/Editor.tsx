@@ -4,7 +4,6 @@ import {basicSetup} from 'codemirror';
 import {javascript} from '@codemirror/lang-javascript';
 import {oneDark} from '@codemirror/theme-one-dark';
 import {yCollab} from 'y-codemirror.next';
-import { ytext } from "../utils/yjs";
 import * as Y from 'yjs';
 
 interface EditorProps {

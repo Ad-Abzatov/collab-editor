@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import {useParams} from 'react-router-dom';
+import {Link, useParams} from 'react-router-dom';
 import { WebsocketProvider } from 'y-websocket';
 import * as Y from 'yjs';
 import { Editor } from '../components/Editor';
@@ -37,6 +37,17 @@ export default function DocumentPage() {
 
   return (
     <div>
+      <Link
+        to="/"
+        style={{
+          display: 'inline-block',
+          marginBottom: '1rem',
+          color: '#2563eb',
+          textDecoration: 'none',
+        }}
+      >
+        Назад
+      </Link>
       <div>
         Status: {connected ? 'Connected' : 'Disconnected'}
       </div>

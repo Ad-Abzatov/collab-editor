@@ -113,7 +113,11 @@ async function getDocuments(): Promise<DocumentRecord[]> {
 
 async function main() {
   const fastify = Fastify();
-  await fastify.register(cors);
+
+  await fastify.register(cors, {
+    origin: 'http://localhost:5173',
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+  });
 
   fastify.get('/health', async () => ({ status: 'ok' }));
 
