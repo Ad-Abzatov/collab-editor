@@ -15,6 +15,9 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [search, setSearch] = useState('');
+
+  const filteredDocuments = documents.filter((document) => document.title.toLowerCase().includes(search.toLowerCase()));
 
   const createDocument = async () => {
     if (isCreating) {
@@ -101,6 +104,18 @@ function App() {
         {isCreating ? 'Создание...' : 'Создать документ'}
       </button>
 
+      <input
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+        placeholder="Поиск документов"
+        style={{
+          width: '100%',
+          padding: '0.5rem',
+          marginBottom: '1rem',
+          boxSizing: 'border-box',
+        }}
+      />
+
       <h2 style={{marginTop: '2rem', marginBottom: '1rem'}}>
         Документы
       </h2>
@@ -113,7 +128,7 @@ function App() {
         </p>
       ) : (
         <ul style={{listStyle: 'none', padding: 0}}>
-          {documents.map((document) => (
+          {filteredDocuments.map((document) => (
             <li
               key={document.id}
               style={{
@@ -128,6 +143,7 @@ function App() {
               <Link to={`/doc/${document.id}`}>
                 {document.title}
               </Link>
+
               <button
                 onClick={() => deleteDocument(document.id)}
                 style={{
