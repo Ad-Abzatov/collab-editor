@@ -16,6 +16,8 @@ function App() {
   const [title, setTitle] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [search, setSearch] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
 
   const filteredDocuments = documents.filter((document) => document.title.toLowerCase().includes(search.toLowerCase()));
 
@@ -61,6 +63,45 @@ function App() {
       setDocuments((currentDocuments) => currentDocuments.filter((document) => document.id !== documentId))
     } catch (error) {
       console.error('Failed to delete document:', error);
+    }
+  };
+
+  const renameDocument = async (documentId: string) => {
+    const newTitle = editingTitle.trim();
+
+    if (!newTitle) return;
+
+    try {
+      const response = await fetch(
+        `http://localhost:3001/api/documents/${documentId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            title: newTitle,
+          }),
+        }
+      );
+
+      if (!response.ok) throw new Error(`Failed to rename document: ${response.status}`);
+
+      setDocuments((currentDocuments) =>
+        currentDocuments.map((document) =>
+          document.id === documentId
+            ? {
+              ...document,
+              title: newTitle,
+            }
+            : document
+          )
+      );
+
+      setEditingId(null);
+      setEditingTitle('');
+    } catch (error) {
+      console.error('Failed to rename document:', error);
     }
   };
 
@@ -140,9 +181,58 @@ function App() {
                 borderBottom: '1px solid #e5e7eb',
               }}
             >
-              <Link to={`/doc/${document.id}`}>
-                {document.title}
-              </Link>
+              {editingId === document.id ? (
+                <input
+                  value={editingTitle}
+                  onChange={(event) => setEditingTitle(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      renameDocument(document.id);
+                    }
+
+                    if (event.key === 'Escape') {
+                      setEditingId(null);
+                      setEditingTitle('');
+                    }
+                  }}
+                  autoFocus
+                  style={{
+                    flex: 1,
+                    padding: '0.25rem 0.5rem',
+                  }}
+                />
+              ) : (
+                <Link to={`/doc/${document.id}`}>
+                  {document.title}
+                </Link>
+              )}
+
+              <div style={{display: 'flex', gap: '0.5rem'}}>
+                {editingId === document.id ? (
+                  <>
+                    <button onClick={() => renameDocument(document.id)}>
+                      Сохранить
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingId(null);
+                        setEditingTitle('');
+                      }}
+                    >
+                      Отмена
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setEditingId(document.id);
+                      setEditingTitle(document.title);
+                    }}
+                  >
+                    Переименовать
+                  </button>
+                )}
+              </div>
 
               <button
                 onClick={() => deleteDocument(document.id)}
