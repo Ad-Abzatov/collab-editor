@@ -5,16 +5,25 @@ import * as Y from 'yjs'
 import { WebSocketServer } from 'ws'
 import { LeveldbPersistence } from 'y-leveldb'
 import * as utils from 'y-websocket/bin/utils'
+import bcrypt from 'bcrypt'
 
 //npx tsx src/index.ts
 
 const persistence = new LeveldbPersistence('./storage');
 const DOCUMENT_REGISTRY = '__documents__';
+const USERS_REGISTRY = '__users__';
 const {setPersistence, setupWSConnection} = utils;
 
 interface DocumentRecord {
   id: string;
   title: string;
+}
+
+interface UserRecord {
+  id: string;
+  email: string;
+  passwordHash: string;
+  createdAt: string;
 }
 
 setPersistence({
@@ -111,6 +120,41 @@ async function getDocuments(): Promise<DocumentRecord[]> {
   return documents.toArray() as DocumentRecord[];
 }
 
+async function getUserByEmail(email: string): Promise<UserRecord | null> {
+  const usersDoc = await persistence.getYDoc(USERS_REGISTRY);
+
+  const users = usersDoc.getArray<UserRecord>('users');
+
+  const user = users.toArray().find((candidate) => candidate.email.toLowerCase() === email.toLowerCase());
+
+  return user ?? null;
+}
+
+async function createUser(
+  email: string,
+  passwordHash: string
+): Promise<UserRecord> {
+  const usersDoc = await persistence.getYDoc(USERS_REGISTRY);
+
+  const users = usersDoc.getArray<UserRecord>('users');
+
+  const user: UserRecord = {
+    id: crypto.randomUUID(),
+    email: email.toLowerCase(),
+    passwordHash,
+    createdAt: new Date().toISOString(),
+  };
+
+  users.push([user]);
+
+  await persistence.storeUpdate(
+    USERS_REGISTRY,
+    Y.encodeStateAsUpdate(usersDoc)
+  );
+
+  return user;
+}
+
 async function main() {
   const fastify = Fastify();
 
@@ -169,6 +213,52 @@ async function main() {
 
     return {
       success: true,
+    };
+  });
+
+  fastify.post('/api/auth/register', async (request, reply) => {
+    const {email, password} = request.body as {
+      email?: string;
+      password?: string;
+    };
+
+    const normalizedEmail = email?.trim().toLowerCase() ?? '';
+
+    if (!normalizedEmail || !normalizedEmail.includes('@')) {
+      reply.status(400);
+
+      return {
+        error: 'Valid email os required',
+      };
+    }
+
+    if (!password || password.length < 8) {
+      reply.status(400);
+
+      return {
+        error: 'Password must be at least 8 characters long',
+      };
+    }
+
+    const existingUser = await getUserByEmail(normalizedEmail);
+
+    if (existingUser) {
+      reply.status(409);
+
+      return {
+        error: 'User with this email already exists',
+      };
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const user = await createUser(normalizedEmail, passwordHash);
+
+    reply.status(201);
+
+    return {
+      id: user.id,
+      email: user.email,
     };
   });
 
