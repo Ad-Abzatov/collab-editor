@@ -6,6 +6,8 @@ import { WebSocketServer } from 'ws'
 import { LeveldbPersistence } from 'y-leveldb'
 import * as utils from 'y-websocket/bin/utils'
 import bcrypt from 'bcrypt'
+import cookie from '@fastify/cookie'
+import jwt from '@fastify/jwt'
 
 //npx tsx src/index.ts
 
@@ -161,6 +163,14 @@ async function main() {
   await fastify.register(cors, {
     origin: 'http://localhost:5173',
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+  });
+  await fastify.register(cookie);
+  await fastify.register(jwt, {
+    secret: process.env.JWT_SECRET ?? 'dev-secret-change-me',
+    cookie: {
+      cookieName: 'token',
+      signed: false,
+    },
   });
 
   fastify.get('/health', async () => ({ status: 'ok' }));
