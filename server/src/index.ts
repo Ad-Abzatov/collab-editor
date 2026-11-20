@@ -28,6 +28,11 @@ interface UserRecord {
   createdAt: string;
 }
 
+interface AuthPayload {
+  sub: string;
+  email: string;
+}
+
 setPersistence({
   provider: persistence,
 
@@ -270,6 +275,85 @@ async function main() {
       id: user.id,
       email: user.email,
     };
+  });
+
+  fastify.post('/api/auth/login', async (request, reply) => {
+    const {email, password} = request.body as {
+      email?: string;
+      password?: string;
+    };
+
+    const normalizedEmail = email?.trim().toLowerCase() ?? '';
+
+    if (!normalizedEmail || !password) {
+      reply.status(400);
+
+      return {
+        error: 'Email and password are required',
+      };
+    }
+
+    const user = await getUserByEmail(normalizedEmail);
+
+    if (!user) {
+      reply.status(401);
+
+      return {
+        error: 'Invalid email or password',
+      };
+    }
+
+    const passwordMatches = await bcrypt.compare(
+      password,
+      user.passwordHash
+    );
+
+    if (!passwordMatches) {
+      reply.status(401);
+
+      return {
+        error: 'Invalid email or password',
+      };
+    }
+
+    const token = fastify.jwt.sign(
+      {
+        sub: user.id,
+        email: user.email,
+      },
+      {
+        expiresIn: '7d',
+      }
+    );
+
+    reply.setCookie('token', token, {
+      path: '/',
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: false,
+    });
+
+    return {
+      id: user.id,
+      email: user.email,
+    };
+  });
+
+  fastify.get('/api/auth/me', async (request, reply) => {
+    try {
+      const payload = await request.jwtVerify<AuthPayload>();
+
+      return {
+        id: payload.sub,
+        email: payload.email,
+      };
+    } catch {
+      reply.status(401);
+
+      return {
+        error: 'Unauthorized',
+      };
+    }
   });
 
   await fastify.listen({ port: 3001, host: '0.0.0.0' });
