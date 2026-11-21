@@ -19,6 +19,7 @@ const {setPersistence, setupWSConnection} = utils;
 interface DocumentRecord {
   id: string;
   title: string;
+  ownerId: string;
 }
 
 interface UserRecord {
@@ -49,7 +50,7 @@ setPersistence({
   writeState: async (docName: string, ydoc: Y.Doc) => {},
 });
 
-async function addDocumentToRegistry(docName: string, title: string) {
+async function addDocumentToRegistry(docName: string, title: string, ownerId: string) {
   const registryDoc = await persistence.getYDoc(DOCUMENT_REGISTRY);
 
   const documents = registryDoc.getArray<DocumentRecord>('documents');
@@ -61,6 +62,7 @@ async function addDocumentToRegistry(docName: string, title: string) {
       {
         id: docName,
         title,
+        ownerId,
       },
     ]);
 
@@ -187,18 +189,32 @@ async function main() {
   });
 
   fastify.post('/api/documents', async (request, reply) => {
+    let userId: string;
+    try {
+      const payload = await request.jwtVerify<AuthPayload>();
+
+      userId = payload.sub;
+    } catch {
+      reply.status(401);
+
+      return {
+        error: 'Unauthorized',
+      };
+    }
+
     const {title} = request.body as {title?: string};
 
     const documentTitle = title?.trim() || 'Без названия';
     const roomId = crypto.randomUUID();
 
-    await addDocumentToRegistry(roomId, documentTitle);
+    await addDocumentToRegistry(roomId, documentTitle, userId);
 
     reply.status(201);
 
     return {
       id: roomId,
       title: documentTitle,
+      ownerId: userId,
     };
   });
 
@@ -354,6 +370,16 @@ async function main() {
         error: 'Unauthorized',
       };
     }
+  });
+
+  fastify.post('/api/auth/logout', async (_request, reply) => {
+    reply.clearCookie('token', {
+      path: '/',
+    });
+
+    return {
+      ok: true,
+    };
   });
 
   await fastify.listen({ port: 3001, host: '0.0.0.0' });
