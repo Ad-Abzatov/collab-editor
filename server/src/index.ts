@@ -121,12 +121,12 @@ async function deleteDocument(docName: string) {
   await persistence.clearDocument(docName);
 }
 
-async function getDocuments(): Promise<DocumentRecord[]> {
+async function getDocuments(ownerId: string): Promise<DocumentRecord[]> {
   const registryDoc = await persistence.getYDoc(DOCUMENT_REGISTRY);
 
   const documents = registryDoc.getArray<DocumentRecord>('documents');
 
-  return documents.toArray() as DocumentRecord[];
+  return documents.toArray().filter((document) => document.ownerId === ownerId) as DocumentRecord[];
 }
 
 async function getUserByEmail(email: string): Promise<UserRecord | null> {
@@ -182,8 +182,22 @@ async function main() {
 
   fastify.get('/health', async () => ({ status: 'ok' }));
 
-  fastify.get('/api/documents', async () => {
-    const documents = await getDocuments();
+  fastify.get('/api/documents', async (request, reply) => {
+    let userId: string;
+
+    try {
+      const payload = await request.jwtVerify<AuthPayload>();
+
+      userId = payload.sub;
+    } catch {
+      reply.status(401);
+
+      return {
+        error: 'Unauthorized',
+      };
+    }
+
+    const documents = await getDocuments(userId);
 
     return {documents};
   });
