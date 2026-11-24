@@ -8,31 +8,14 @@ import * as utils from 'y-websocket/bin/utils'
 import bcrypt from 'bcrypt'
 import cookie from '@fastify/cookie'
 import jwt from '@fastify/jwt'
+import type {UserRecord, AuthPayload} from './types'
+import { getDocuments, addDocumentToRegistry, renameDocument, deleteDocument } from './services/documents'
 
 //npx tsx src/index.ts
 
 const persistence = new LeveldbPersistence('./storage');
-const DOCUMENT_REGISTRY = '__documents__';
 const USERS_REGISTRY = '__users__';
 const {setPersistence, setupWSConnection} = utils;
-
-interface DocumentRecord {
-  id: string;
-  title: string;
-  ownerId: string;
-}
-
-interface UserRecord {
-  id: string;
-  email: string;
-  passwordHash: string;
-  createdAt: string;
-}
-
-interface AuthPayload {
-  sub: string;
-  email: string;
-}
 
 setPersistence({
   provider: persistence,
@@ -49,85 +32,6 @@ setPersistence({
 
   writeState: async (docName: string, ydoc: Y.Doc) => {},
 });
-
-async function addDocumentToRegistry(docName: string, title: string, ownerId: string) {
-  const registryDoc = await persistence.getYDoc(DOCUMENT_REGISTRY);
-
-  const documents = registryDoc.getArray<DocumentRecord>('documents');
-
-  const exists = documents.toArray().some((document) => document.id === docName);
-
-  if (!exists) {
-    documents.push([
-      {
-        id: docName,
-        title,
-        ownerId,
-      },
-    ]);
-
-    await persistence.storeUpdate(
-      DOCUMENT_REGISTRY,
-      Y.encodeStateAsUpdate(registryDoc)
-    );
-  }
-}
-
-async function renameDocument(docName: string, title: string) {
-  const registryDoc = await persistence.getYDoc(DOCUMENT_REGISTRY);
-
-  const documents = registryDoc.getArray<DocumentRecord>('documents');
-
-  const index = documents.toArray().findIndex((document) => document.id === docName);
-
-  if (index === -1) {
-    documents.push([
-      {
-        id: docName,
-        title,
-      },
-    ]);
-  } else {
-    documents.delete(index, 1);
-    documents.insert(index, [
-    {
-      id: docName,
-      title,
-    },
-  ]);
-  }
-
-  await persistence.storeUpdate(
-      DOCUMENT_REGISTRY,
-      Y.encodeStateAsUpdate(registryDoc)
-  );
-}
-
-async function deleteDocument(docName: string) {
-  const registryDoc = await persistence.getYDoc(DOCUMENT_REGISTRY);
-  const documents = registryDoc.getArray<DocumentRecord>('documents');
-
-  const index = documents.toArray().findIndex((document) => document.id === docName);
-
-  if (index !== -1) {
-    documents.delete(index, 1);
-
-    await persistence.storeUpdate(
-      DOCUMENT_REGISTRY,
-      Y.encodeStateAsUpdate(registryDoc)
-    );
-  }
-
-  await persistence.clearDocument(docName);
-}
-
-async function getDocuments(ownerId: string): Promise<DocumentRecord[]> {
-  const registryDoc = await persistence.getYDoc(DOCUMENT_REGISTRY);
-
-  const documents = registryDoc.getArray<DocumentRecord>('documents');
-
-  return documents.toArray().filter((document) => document.ownerId === ownerId) as DocumentRecord[];
-}
 
 async function getUserByEmail(email: string): Promise<UserRecord | null> {
   const usersDoc = await persistence.getYDoc(USERS_REGISTRY);
