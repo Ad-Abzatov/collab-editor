@@ -36,7 +36,7 @@ export async function addDocumentToRegistry(docName: string, title: string, owne
   }
 }
 
-export async function renameDocument(docName: string, title: string) {
+export async function renameDocument(docName: string, title: string, ownerId: string): Promise<void> {
   const registryDoc = await persistence.getYDoc(DOCUMENT_REGISTRY);
 
   const documents = registryDoc.getArray<DocumentRecord>('documents');
@@ -44,21 +44,23 @@ export async function renameDocument(docName: string, title: string) {
   const index = documents.toArray().findIndex((document) => document.id === docName);
 
   if (index === -1) {
-    documents.push([
-      {
-        id: docName,
-        title,
-      },
-    ]);
-  } else {
-    documents.delete(index, 1);
-    documents.insert(index, [
+    throw new Error('Document not found');
+  }
+
+  const document = documents.toArray()[index];
+
+  if (document?.ownerId !== ownerId) {
+    throw new Error('Forbidden');
+  }
+
+  documents.delete(index, 1);
+  documents.insert(index, [
     {
-      id: docName,
+      id: document.id,
       title,
+      ownerId: document.ownerId,
     },
   ]);
-  }
 
   await persistence.storeUpdate(
       DOCUMENT_REGISTRY,
