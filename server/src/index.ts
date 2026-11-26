@@ -3,14 +3,15 @@ import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import * as Y from 'yjs'
 import { WebSocketServer } from 'ws'
-import { LeveldbPersistence } from 'y-leveldb'
 import * as utils from 'y-websocket/bin/utils'
 import cookie from '@fastify/cookie'
 import jwt from '@fastify/jwt'
+import { authRoutes } from './routes/auth'
+import { documentRoutes } from './routes/documents'
+import { persistence } from './persistence/leveldb'
 
 //npx tsx src/index.ts
 
-const persistence = new LeveldbPersistence('./storage');
 const {setPersistence, setupWSConnection} = utils;
 
 setPersistence({
@@ -44,6 +45,8 @@ async function main() {
       signed: false,
     },
   });
+  await fastify.register(authRoutes);
+  await fastify.register(documentRoutes);
 
   fastify.get('/health', async () => ({ status: 'ok' }));
 

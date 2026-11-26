@@ -1,8 +1,7 @@
-import { LeveldbPersistence } from "y-leveldb";
+import { persistence } from "../persistence/leveldb";
 import type { UserRecord } from "../types";
 import * as Y from 'yjs';
 
-const persistence = new LeveldbPersistence('./storage');
 const USERS_REGISTRY = '__users__';
 
 export async function getUserByEmail(email: string): Promise<UserRecord | null> {

@@ -1,8 +1,7 @@
-import { LeveldbPersistence } from "y-leveldb";
+import { persistence } from "../persistence/leveldb";
 import type { DocumentRecord } from "../types";
 import * as Y from 'yjs';
 
-const persistence = new LeveldbPersistence('./storage');
 const DOCUMENT_REGISTRY = '__documents__';
 
 export async function getDocuments(ownerId: string): Promise<DocumentRecord[]> {
